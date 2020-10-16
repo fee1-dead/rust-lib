@@ -211,7 +211,7 @@ impl AutomatonData {
     }
 
     /// Get the rule name for a the provided state.
-    pub fn name_for_dfa_state(&self, sources:&Vec<nfa::State>) -> Option<&str> {
+    pub fn name_for_dfa_state(&self, sources:&[nfa::State]) -> Option<&str> {
         let mut result = None;
         for source in sources.iter() {
             let name = self.name(*source);

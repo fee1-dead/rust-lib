@@ -184,7 +184,7 @@ pub fn automaton_for_group
     let mut rules = Vec::with_capacity(nfa.states().len());
     for state in nfa.public_states().iter() {
         if nfa.name(*state).is_some() {
-            rules.push(rule_for_state(state,&nfa)?);
+            rules.push(rule_for_state(*state,&nfa)?);
         }
     }
     let mut dfa             = Dfa::from(nfa.automaton());
@@ -384,13 +384,13 @@ pub fn name_for_step(in_state:usize, to_state:usize) -> Ident {
 }
 
 /// Generate an executable rule function for a given lexer state.
-pub fn rule_for_state(state:&nfa::State, automaton:&AutomatonData) -> Result<ImplItem,GenError> {
-    let state_name = automaton.name(*state);
+pub fn rule_for_state(state:nfa::State, automaton:&AutomatonData) -> Result<ImplItem,GenError> {
+    let state_name = automaton.name(state);
     match state_name {
         None => unreachable_panic!("Rule for state requested, but state has none."),
         Some(name) => {
             let rule_name = str_to_ident(name)?;
-            let callback  = automaton.code(*state).expect("If it is named it has a callback.");
+            let callback  = automaton.code(state).expect("If it is named it has a callback.");
             let code:Expr = match parse_str(callback) {
                 Ok(expr) => expr,
                 Err(_)   => return Err(GenError::BadExpression(callback.into()))
