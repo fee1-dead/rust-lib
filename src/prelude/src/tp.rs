@@ -78,3 +78,16 @@ impl KnownTypeValue for False {
         false
     }
 }
+
+
+
+// ========================
+// === Type Conversions ===
+// ========================
+
+/// This is used to make type inference better at use sites - without it,
+/// Rust would force one to write the `where` clause at every use site.
+pub trait IntoSelfFrom<T> = Sized where T:Into<Self>;
+
+/// Can be transformed from and into.
+pub trait BiInto<T> = Sized + Into<T> + IntoSelfFrom<T>;
