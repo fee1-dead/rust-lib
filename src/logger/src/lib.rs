@@ -1,6 +1,4 @@
-//! This crate contains implementation of logging interface.
-
-#![feature(cell_update)]
+//! Extensible logger implementation.
 
 #![deny(unconditional_recursion)]
 #![warn(missing_copy_implementations)]
@@ -10,34 +8,71 @@
 #![warn(trivial_numeric_casts)]
 #![warn(unsafe_code)]
 #![warn(unused_import_braces)]
+#![feature(specialization)]
 
-pub mod disabled;
-pub mod enabled;
+pub mod entry;
+pub mod macros;
+pub mod processor;
 
-use enso_prelude::*;
+pub use enso_prelude as prelude;
+pub use entry::message::Message;
+
+use prelude::*;
+
+use crate::entry::Entry;
+use crate::entry::DefaultFilter;
+use crate::entry::DefaultLevels;
+use crate::processor::DefaultProcessor;
+use crate::processor::Processor;
+
+use enso_shapely::CloneRef;
+use std::fmt::Debug;
 
 
 
 // ==============
-// === Message ===
+// === Logger ===
 // ==============
 
-/// Message that can be logged.
-pub trait Message {
-    /// Turns message into `&str` and passes it to input function.
-    fn with<T,F:FnOnce(&str)->T>(&self, f:F) -> T;
+/// The main logger implementation. It is parametrized by three main types:
+/// - Filter, which is used for compile-time message filtering (zero runtime overhead).
+/// - Processor, which defines a pipeline of what happens to the logged messages. Read the docs of
+///   `Processor` to learn more.
+/// - Levels, which is a structure defining all possible verbosity levels this logger should handle.
+///   See the `level.rs` module to learn how to define custom verbosity levels.
+///
+/// In order to learn how to use the logger, please refer to the docs in `macros.rs`, where a lot
+/// of logging utility macros are defined.
+#[derive(CloneRef,Debug,Derivative)]
+#[derivative(Clone(bound=""))]
+pub struct Logger<Filter=DefaultFilter, Processor=DefaultProcessor, Levels=DefaultLevels> {
+    path      : ImString,
+    filter    : PhantomData<Filter>,
+    levels    : PhantomData<Levels>,
+    processor : Rc<RefCell<Processor>>,
 }
 
-impl Message for &str {
-    fn with<T,F:FnOnce(&str)->T>(&self, f:F) -> T {
-        f(self)
+impl<Filter,Processor,Level> Logger<Filter,Processor,Level>
+where Processor:Default {
+    /// Constructor from another logger keeping the same path.
+    pub fn new_from(logger:impl AnyLogger) -> Self {
+        Self::new(logger.path())
     }
 }
 
-impl<G:Fn()->S, S:AsRef<str>> Message for G {
-    fn with<T,F:FnOnce(&str)->T>(&self, f:F) -> T {
-        f(self().as_ref())
+impl<Filter,Processor,Level> AnyLogger for Logger<Filter,Processor,Level>
+where Processor:Default {
+    type Owned = Self;
+
+    fn new(path:impl Into<ImString>) -> Self {
+        let path      = path.into();
+        let filter    = default();
+        let levels    = default();
+        let processor = default();
+        Self {path,filter,levels,processor}
     }
+
+    fn path (&self) -> &str { &self.path }
 }
 
 
@@ -46,194 +81,132 @@ impl<G:Fn()->S, S:AsRef<str>> Message for G {
 // === AnyLogger ===
 // =================
 
-/// Interface common to all loggers.
+/// A common interface for all loggers. Exposing all information needed to create a particular
+/// sub-logger from a given parent logger of any type.
 pub trait AnyLogger {
-    /// Owned type of the logger.
+    /// The owned type of this logger. As this trait is implemented for logger references, this
+    /// dependent type just removes the references in this case.
     type Owned;
 
-    /// Creates a new logger. Path should be a unique identifier for this logger.
+    /// Constructor.
     fn new(path:impl Into<ImString>) -> Self::Owned;
 
     /// Path that is used as an unique identifier of this logger.
     fn path(&self) -> &str;
 
-    /// Creates a new logger with this logger as a parent.
-    fn sub(logger:impl AnyLogger, path:impl Into<ImString>) -> Self::Owned {
-        let path       = path.into();
-        let super_path = logger.path();
-        if super_path.is_empty() { Self::new(path) }
-        else                     { Self::new(iformat!("{super_path}.{path}")) }
+    /// Creates a new logger with this logger as a parent. It can be useful when we need to create
+    /// a sub-logger for a generic type parameter.
+    fn sub(logger:impl AnyLogger, id:impl AsRef<str>) -> Self::Owned
+    where Self::Owned : AnyLogger<Owned=Self::Owned> {
+        Self::Owned::new(iformat!("{logger.path()}.{id.as_ref()}"))
     }
-
-    /// Creates a logger from AnyLogger.
-    fn from_logger(logger:impl AnyLogger) -> Self::Owned {
-        Self::new(logger.path())
-    }
-
-    /// Evaluates function `f` and visually groups all logs will occur during its execution.
-    fn group<T,F:FnOnce() -> T>(&self, msg:impl Message, f:F) -> T {
-        self.group_begin(msg);
-        let out = f();
-        self.group_end();
-        out
-    }
-
-    /// Log with stacktrace and info level verbosity.
-    fn trace(&self, _msg:impl Message) {}
-
-    /// Log with debug level verbosity
-    fn debug(&self, _msg:impl Message) {}
-
-    /// Log with info level verbosity.
-    fn info(&self, _msg:impl Message) {}
-
-    /// Log with warning level verbosity.
-    fn warning(&self, _msg:impl Message) {}
-
-    /// Log with error level verbosity.
-    fn error(&self, _msg:impl Message) {}
-
-    /// Visually groups all logs between group_begin and group_end.
-    fn group_begin(&self, _msg:impl Message) {}
-
-    /// Visually groups all logs between group_begin and group_end.
-    fn group_end(&self) {}
-
-    /// Start tracing all copies of this logger. See `TraceCopies` docs for details.
-    fn trace_copies(&self) {}
 }
 
 impl<T:AnyLogger> AnyLogger for &T {
     type Owned = T::Owned;
-    fn path        (&self) -> &str { T::path(self) }
-    fn new         (path:impl Into<ImString>) -> Self::Owned { T::new(path) }
-    fn trace       (&self, msg:impl Message) { T::trace       (self,msg) }
-    fn debug       (&self, msg:impl Message) { T::debug       (self,msg) }
-    fn info        (&self, msg:impl Message) { T::info        (self,msg) }
-    fn warning     (&self, msg:impl Message) { T::warning     (self,msg) }
-    fn error       (&self, msg:impl Message) { T::error       (self,msg) }
-    fn group_begin (&self, msg:impl Message) { T::group_begin (self,msg) }
-    fn group_end   (&self)                   { T::group_end   (self)     }
-    fn trace_copies(&self)                   { T::trace_copies(self)     }
+    fn new(path:impl Into<ImString>) -> Self::Owned { T::new(path) }
+    fn path(&self) -> &str { T::path(self) }
 }
 
 
 
-// ==============
-// === Macros ===
-// ==============
+// ======================
+// === Logger Aliases ===
+// ======================
 
-/// Shortcut for `|| format!(..)`.
-#[macro_export]
-macro_rules! fmt {
-    ($($arg:tt)*) => (||(format!($($arg)*)))
+macro_rules! define_logger_aliases {
+    ($($tp:ident $name:ident $default_name:ident;)*) => {$(
+        /// A logger which compile-time filters out all messages with log levels smaller than $tp.
+        pub type $name <S=DefaultProcessor,L=DefaultLevels> = Logger<entry::filter_from::$tp,S,L>;
+
+        /// The same as $name, but with all type arguments applied, for convenient usage.
+        pub type $default_name = $name;
+    )*};
 }
 
-/// Evaluates expression and visually groups all logs will occur during its execution.
-#[macro_export]
-macro_rules! group {
-    ($logger:expr, $message:tt, {$($body:tt)*}) => {{
-        let __logger = $logger.clone();
-        __logger.group_begin(|| iformat!{$message});
-        let out = {$($body)*};
-        __logger.group_end();
-        out
-    }};
+define_logger_aliases! {
+    Trace   TraceLogger   DefaultTraceLogger;
+    Debug   DebugLogger   DefaultDebugLogger;
+    Info    InfoLogger    DefaultInfoLogger;
+    Warning WarningLogger DefaultWarningLogger;
+    Error   ErrorLogger   DefaultErrorLogger;
 }
 
-/// Logs a message on on given level.
-#[macro_export]
-macro_rules! log_template {
-    ($method:ident $logger:expr, $message:tt $($rest:tt)*) => {
-        $crate::log_template_impl! {$method $logger, iformat!($message) $($rest)*}
-    };
+
+
+// =================
+// === LoggerOps ===
+// =================
+
+/// Primitive operations on a logger. The type parameter allows for compile-time log level filtering
+/// of the messages.
+#[allow(missing_docs)]
+pub trait LoggerOps<Level=DefaultLevels> {
+    fn log         (&self, level:Level, msg:impl Message);
+    fn group_begin (&self, level:Level, collapsed:bool, msg:impl Message);
+    fn group_end   (&self, level:Level);
 }
 
-/// Logs a message on on given level.
-#[macro_export]
-macro_rules! log_template_impl {
-    ($method:ident $logger:expr, $expr:expr) => {{
-        $logger.$method(|| $expr);
-    }};
-    ($method:ident $logger:expr, $expr:expr, $body:tt) => {{
-        let __logger = $logger.clone();
-        __logger.group_begin(|| $expr);
-        let out = $body;
-        __logger.group_end();
-        out
-    }};
+
+// === Impl for References ===
+
+impl<T:LoggerOps<Level>,Level> LoggerOps<Level> for &T {
+    fn log(&self, level:Level, msg:impl Message) {
+        LoggerOps::log(*self,level,msg)
+    }
+
+    fn group_begin(&self, level:Level, collapsed:bool, msg:impl Message) {
+        LoggerOps::group_begin(*self,level,collapsed,msg)
+    }
+
+    fn group_end(&self, level:Level) {
+        LoggerOps::group_end(*self,level)
+    }
 }
 
-/// Logs an internal error with descriptive message.
-#[macro_export]
-macro_rules! with_internal_bug_message { ($f:ident $($args:tt)*) => { $crate::$f! {
-"This is a bug. Please report it and and provide us with as much information as \
-possible at https://github.com/luna/enso/issues. Thank you!"
-$($args)*
-}};}
 
-/// Logs an internal error.
-#[macro_export]
-macro_rules! log_internal_bug_template {
-    ($($toks:tt)*) => {
-        $crate::with_internal_bug_message! { log_internal_bug_template_impl $($toks)* }
-    };
+// === Generic Redirection ===
+
+impl<S,Filter,Level,L> LoggerOps<L> for Logger<Filter,S,Level>
+where S:Processor<Entry<Level>>, Level:From<L> {
+    default fn log(&self, level:L, msg:impl Message) {
+        self.processor.borrow_mut().submit(Entry::message(level,self.path.clone(),msg));
+    }
+
+    default fn group_begin(&self, level:L, collapsed:bool, msg:impl Message) {
+        self.processor.borrow_mut().submit(Entry::group_begin(level,self.path.clone(),msg,collapsed));
+    }
+
+    default fn group_end(&self, level:L) {
+        self.processor.borrow_mut().submit(Entry::group_end(level,self.path.clone()));
+    }
 }
 
-/// Logs an internal error.
+
+// === Compile-time Filtering ===
+
+/// Defines specialized version of compile time filtering rules for the given filtering levels.
+/// It defines specialized implementations for the default implementation above. See the usage
+/// below to learn more.
 #[macro_export]
-macro_rules! log_internal_bug_template_impl {
-    ($note:tt $method:ident $logger:expr, $message:tt $($rest:tt)*) => {
-        $crate::log_template_impl! {$method $logger,
-            format!("Internal Error. {}\n\n{}",iformat!($message),$note) $($rest)*
+macro_rules! define_compile_time_filtering_rules {
+    ($(for level::from::$filter:ident remove $($level:ident),*;)*) => {$($(
+        impl<S,Level> LoggerOps<entry::level::$level>
+        for Logger<entry::level::filter_from::$filter,S,Level>
+        where S:Processor<Entry<Level>>, Level:From<entry::level::$level> {
+            fn log         (&self, _lvl:entry::level::$level, _msg:impl Message) {}
+            fn group_begin (&self, _lvl:entry::level::$level, _collapsed:bool, _msg:impl Message) {}
+            fn group_end   (&self, _lvl:entry::level::$level) {}
         }
-    };
+    )*)*};
 }
 
-/// Log with stacktrace and level:info.
-#[macro_export]
-macro_rules! trace {
-    ($($toks:tt)*) => {
-        $crate::log_template! {trace $($toks)*}
-    };
-}
 
-/// Log with level:debug
-#[macro_export]
-macro_rules! debug {
-    ($($toks:tt)*) => {
-        $crate::log_template! {debug $($toks)*}
-    };
-}
+// === Compile-time filtering of built-in levels ===
 
-/// Log with level:info.
-#[macro_export]
-macro_rules! info {
-    ($($toks:tt)*) => {
-        $crate::log_template! {info $($toks)*}
-    };
-}
-
-/// Log with level:warning.
-#[macro_export]
-macro_rules! warning {
-    ($($toks:tt)*) => {
-        $crate::log_template! {warning $($toks)*}
-    };
-}
-
-/// Log with level:error.
-#[macro_export]
-macro_rules! error {
-    ($($toks:tt)*) => {
-        $crate::log_template! {error $($toks)*}
-    };
-}
-
-/// Logs an internal warning.
-#[macro_export]
-macro_rules! internal_warning {
-    ($($toks:tt)*) => {
-        $crate::log_internal_bug_template! {warning $($toks)*}
-    };
+define_compile_time_filtering_rules! {
+    for level::from::Debug   remove Trace;
+    for level::from::Info    remove Trace,Debug;
+    for level::from::Warning remove Trace,Debug,Info;
+    for level::from::Error   remove Trace,Debug,Info,Warning;
 }
