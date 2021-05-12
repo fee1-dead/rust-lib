@@ -1,6 +1,6 @@
 [package]
 name    = "enso-shapely-macros"
-version = "0.2.0"
+version = "0.2.1"
 authors = ["Enso Team <enso-dev@enso.org>"]
 edition = "2018"
 
@@ -22,7 +22,7 @@ proc-macro = true
 default = []
 
 [dependencies]
-enso-macro-utils  = { version = "0.1.1"  , path = "../../macro-utils" }
+enso-macro-utils  = { version = "^0.2.0", path = "../../macro-utils" }
 proc-macro2  = "1.0"
 quote        = "1.0"
 Inflector    = "0.11.4"

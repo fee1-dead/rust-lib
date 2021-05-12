@@ -12,4 +12,4 @@ test       = true
 bench      = true
 
 [dependencies]
-enso-flexer = { version = "0.1.0", path = "../../flexer" }
+enso-flexer = { version = "^0.2.0", path = "../../flexer" }
