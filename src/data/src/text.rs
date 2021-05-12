@@ -2,13 +2,13 @@
 
 use enso_prelude::*;
 
+use serde::Deserialize;
+use serde::Serialize;
 use std::ops::Add;
 use std::ops::AddAssign;
 use std::ops::Range;
 use std::ops::Sub;
 use std::ops::SubAssign;
-use serde::Serialize;
-use serde::Deserialize;
 
 
 
@@ -266,7 +266,7 @@ impls! { From + &From <Range<usize>> for Span { |range|
     Span::from_indices(Index::new(range.start), Index::new(range.end))
 }}
 
-impls! { Into + &Into <Range<usize>> for Span { |this|
+impls! { From + &From<Span> for Range<usize> { |this|
     this.range()
 }}
 
@@ -404,7 +404,7 @@ impl TextLocation {
     /// This operation involves iterating over content characters and is O(n).
     ///
     /// Behavior for out-of-bounds index conversion is unspecified but will never panic.
-    pub fn to_index(&self, content:impl AsRef<str>) -> Index {
+    pub fn to_index(self, content:impl AsRef<str>) -> Index {
         let line_index = match self.line {
             0 => 0,
             _ => {
@@ -571,12 +571,9 @@ pub fn split_to_lines(text:&str) -> impl Iterator<Item=String> + '_ {
 }
 
 /// Returns slice without carriage return (also known as CR or `'\r'`) at line's end
+#[rustversion::since(2020-02-01)]
 fn cut_cr_at_end_of_line(from:&str) -> &str {
-    if from.ends_with('\r') {
-        &from[..from.len()-1]
-    } else {
-        from
-    }
+    from.strip_suffix('\r').unwrap_or(from)
 }
 
 

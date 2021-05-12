@@ -3,11 +3,9 @@
 
 pub use enso_shapely_macros::*;
 
-use derivative::Derivative;
 use std::ops::Generator;
 use std::ops::GeneratorState;
 use std::pin::Pin;
-use std::marker::PhantomData;
 
 
 
@@ -23,35 +21,10 @@ impl<G> Iterator for GeneratingIterator<G>
 where G: Generator<Return = ()> + Unpin {
     type Item = G::Yield;
     fn next(&mut self) -> Option<Self::Item> {
-        match Pin::new(&mut self.0).resume() {
+        match Pin::new(&mut self.0).resume(()) {
             GeneratorState::Yielded(element) => Some(element),
             _                                => None,
         }
-    }
-}
-
-
-
-// =====================
-// === EmptyIterator ===
-// =====================
-
-/// An `Iterator` type that yields no values of the given type `T`.
-#[derive(Derivative)]
-#[derivative(Debug,Default(bound=""))]
-pub struct EmptyIterator<T>(PhantomData<T>);
-
-impl<T> EmptyIterator<T> {
-    /// Create a new empty iterator.
-    pub fn new() -> Self {
-        Default::default()
-    }
-}
-
-impl<T> Iterator for EmptyIterator<T> {
-    type Item = T;
-    fn next(&mut self) -> Option<Self::Item> {
-        None
     }
 }
 
@@ -64,16 +37,6 @@ impl<T> Iterator for EmptyIterator<T> {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn empty_iterator_works_for_any_type() {
-        for elem in EmptyIterator::new() {
-            elem: i32;
-        }
-        for elem in EmptyIterator::new() {
-            elem: String;
-        }
-    }
 
     #[test]
     fn generating_iterator_works() {

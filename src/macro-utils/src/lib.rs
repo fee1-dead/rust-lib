@@ -11,7 +11,6 @@ use std::iter::FromIterator;
 use syn::visit::Visit;
 use syn::WhereClause;
 use syn::WherePredicate;
-use syn;
 
 
 
@@ -31,7 +30,7 @@ pub trait Str = Into<String> + AsRef<str>;
 pub fn map_tokens<F:Fn(TokenTree) -> TokenTree>
 (input:TokenStream, f:F) -> TokenStream {
     let ret_iter = input.into_iter().map(f);
-    TokenStream::from_iter(ret_iter)
+    ret_iter.collect()
 }
 
 /// Rewrites stream replacing each token with a sequence of tokens returned by
