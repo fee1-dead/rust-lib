@@ -3,6 +3,7 @@
 //! defines several aliases and utils which may find their place in new
 //! libraries in the future.
 
+#![feature(concat_idents)]
 #![feature(specialization)]
 #![feature(trait_alias)]
 #![allow(incomplete_features)] // To be removed, see: https://github.com/enso-org/ide/issues/1559
@@ -10,10 +11,10 @@
 #![warn(missing_debug_implementations)]
 #![warn(unsafe_code)]
 
-mod debug;
 mod clone;
 mod collections;
 mod data;
+pub mod debug;
 mod macros;
 mod option;
 mod phantom;
