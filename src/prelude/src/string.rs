@@ -106,7 +106,7 @@ impl AsRef<str> for CowString {
 // ================
 
 /// Immutable string implementation with a fast clone implementation.
-#[derive(Clone,CloneRef,Debug,Default,Eq,Hash,PartialEq,Serialize,Deserialize)]
+#[derive(Clone,CloneRef,Default,Eq,Hash,PartialEq,Serialize,Deserialize)]
 pub struct ImString {
     content : Rc<String>
 }
@@ -126,7 +126,13 @@ impl ImString {
 
 impl std::fmt::Display for ImString {
     fn fmt(&self, f:&mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f,"{}",self.content)
+        std::fmt::Display::fmt(&self.content,f)
+    }
+}
+
+impl std::fmt::Debug for ImString {
+    fn fmt(&self, f:&mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        std::fmt::Debug::fmt(&self.content,f)
     }
 }
 

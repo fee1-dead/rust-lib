@@ -27,7 +27,6 @@ use crate::processor::DefaultProcessor;
 use crate::processor::Processor;
 
 use enso_shapely::CloneRef;
-use std::fmt::Debug;
 
 
 
@@ -44,12 +43,16 @@ use std::fmt::Debug;
 ///
 /// In order to learn how to use the logger, please refer to the docs in `macros.rs`, where a lot
 /// of logging utility macros are defined.
-#[derive(CloneRef,Debug,Derivative)]
+#[derive(CloneRef,Derivative)]
 #[derivative(Clone(bound=""))]
+#[derivative(Debug(bound=""))]
 pub struct Logger<Filter=DefaultFilter, Processor=DefaultProcessor, Levels=DefaultLevels> {
     path      : ImString,
+    #[derivative(Debug="ignore")]
     filter    : PhantomData<Filter>,
+    #[derivative(Debug="ignore")]
     levels    : PhantomData<Levels>,
+    #[derivative(Debug="ignore")]
     processor : Rc<RefCell<Processor>>,
 }
 
@@ -97,7 +100,14 @@ pub trait AnyLogger {
 
     /// Creates a new logger with this logger as a parent. It can be useful when we need to create
     /// a sub-logger for a generic type parameter.
-    fn sub(logger:impl AnyLogger, id:impl AsRef<str>) -> Self::Owned
+    fn sub<T>(&self, id:impl AsRef<str>) -> T
+    where T:AnyLogger<Owned=T>, Self:Sized {
+        <T as AnyLogger>::new_sub(self,id)
+    }
+
+    /// Creates a new logger with this logger as a parent. It can be useful when we need to create
+    /// a sub-logger for a generic type parameter.
+    fn new_sub(logger:impl AnyLogger, id:impl AsRef<str>) -> Self::Owned
     where Self::Owned : AnyLogger<Owned=Self::Owned> {
         Self::Owned::new(iformat!("{logger.path()}.{id.as_ref()}"))
     }

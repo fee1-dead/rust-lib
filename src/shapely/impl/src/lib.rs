@@ -65,6 +65,14 @@ macro_rules! newtype_prim_no_derives {
         impl From<$name>   for $type { fn from(t:$name)   -> Self { t.raw } }
         impl From<&$name>  for $type { fn from(t:&$name)  -> Self { t.raw } }
         impl From<&&$name> for $type { fn from(t:&&$name) -> Self { t.raw } }
+
+        impl fmt::Debug for $name {
+            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                f.debug_tuple(stringify!($name))
+                    .field(&self.raw)
+                    .finish()
+            }
+        }
     )*}
 }
 
@@ -114,7 +122,7 @@ macro_rules! newtype_prim {
         $crate::newtype_prim_no_derives! {
             $(
                 $(#$meta)*
-                #[derive(Copy,Clone,CloneRef,Debug,Default,Display,Eq,Hash,Ord,PartialOrd,PartialEq)]
+                #[derive(Copy,Clone,CloneRef,Default,Display,Eq,Hash,Ord,PartialOrd,PartialEq)]
                 $name($type);
             )*
         }
@@ -128,7 +136,7 @@ macro_rules! newtype_prim_no_default {
         $crate::newtype_prim_no_derives! {
             $(
                 $(#$meta)*
-                #[derive(Copy,Clone,CloneRef,Debug,Display,Eq,Hash,Ord,PartialOrd,PartialEq)]
+                #[derive(Copy,Clone,CloneRef,Display,Eq,Hash,Ord,PartialOrd,PartialEq)]
                 $name($type);
             )*
         }
@@ -142,7 +150,7 @@ macro_rules! newtype_prim_no_default_no_display {
         $crate::newtype_prim_no_derives! {
             $(
                 $(#$meta)*
-                #[derive(Copy,Clone,CloneRef,Debug,Eq,Hash,Ord,PartialOrd,PartialEq)]
+                #[derive(Copy,Clone,CloneRef,Eq,Hash,Ord,PartialOrd,PartialEq)]
                 $name($type);
             )*
         }
