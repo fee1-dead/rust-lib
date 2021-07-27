@@ -1102,7 +1102,7 @@ where Definition : State,
       Output     : Default {
     /// Create a new lexer instance.
     pub fn new(parent_logger:impl AnyLogger) -> Flexer<Definition,Output,Logger> {
-        let logger           = <Logger>::sub(&parent_logger,"Flexer");
+        let logger           = <Logger>::new_sub(&parent_logger,"Flexer");
         let status           = default();
         let output           = default();
         let definition       = Definition::new(&logger);
