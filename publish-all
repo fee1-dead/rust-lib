@@ -1,0 +1,54 @@
+#!/usr/bin/env node
+
+const fs   = require('fs')
+const path = require('path')
+const {execSync,spawnSync} = require("child_process");
+
+let args = process.argv.slice(2)
+
+function runSync(cmd, args) {
+    console.log(`Executing '${cmd} ${args.join(' ')}'`)
+    let proc = spawnSync(cmd, args, {stdio: 'inherit', shell: true})
+    if (proc.status != 0) {
+        process.exit(code)
+    }
+}
+
+function withDir(dir, fn) {
+    let oldDir = process.cwd()
+    let newDir = path.join(oldDir,dir)
+    process.chdir(newDir)
+    fn()
+    process.chdir(oldDir)
+}
+
+let cargoNameRegex    = /^\s*name\s*=\s*"(?<name>[^"]*)"/m
+let cargoVersionRegex = /^\s*version\s*=\s*"(?<version>[^"]*)"/m
+
+function processCrate(dir) {
+    withDir(`src/${dir}`, () => {
+        let cfg     = fs.readFileSync("Cargo.toml",{encoding:'utf8'})
+        let name    = cfg.match(cargoNameRegex).groups.name
+        let version = cfg.match(cargoVersionRegex).groups.version
+
+        console.log(`\n\n=== ${dir} (${name}-${version}) ===\n`)
+
+        console.log('Checking crates version.')
+        let cratesVersionRegex = new RegExp(`^\\s*${name}\\s*=\\s*"(?<version>[^"]*)"`, 'm');
+        let cratesSearch       = execSync(`cargo search ${name}`,{encoding: "UTF-8"})
+        let cratesVersion      = cratesSearch.match(cratesVersionRegex).groups.version
+        let upToDate           = version == cratesVersion
+
+        if (!upToDate) {
+            console.log('Crates version is not up to date. Uploading new version.')
+            runSync("cargo",["publish"])
+        }
+    })
+}
+
+// The ordering takes into consideration inter-crate dependencies.
+let dirs = ['macro-utils','generics','shapely/macros','shapely/impl','prelude','data','optics','logger','automata','lazy-reader']
+
+for (let dir of dirs) {
+    processCrate(dir)
+}
