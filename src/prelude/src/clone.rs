@@ -14,7 +14,7 @@ pub use enso_shapely::CloneRef;
 /// creation time and store it as `f32`. As long as it cannot be mutated, the structure can
 /// implement `CloneRef`. In order to guide the auto-deriving mechanism, it is advised to wrap all
 /// immutable fields in the `Immutable` newtype.
-pub trait CloneRef: Sized {
+pub trait CloneRef: Sized + Clone {
     fn clone_ref(&self) -> Self;
 }
 
