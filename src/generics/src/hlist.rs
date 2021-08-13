@@ -72,7 +72,7 @@ pub trait HasLength {
 }
 
 /// Compile-time known length value.
-pub const fn len<T:HasLength>() -> usize {
+pub const fn len<T:?const HasLength>() -> usize {
     <T as HasLength>::LEN
 }
 

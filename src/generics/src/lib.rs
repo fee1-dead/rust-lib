@@ -21,6 +21,7 @@
 #![feature(const_fn_trait_bound)]
 #![feature(specialization)]
 #![feature(trait_alias)]
+#![feature(const_trait_bound_opt_out)]
 
 pub mod generic;
 pub mod hlist;
